@@ -58,7 +58,7 @@ class Data_Labeling():
         elif self.image_name.lower().startswith("normal"):
             return NORMAL
         else:
-            raise ValueError(f"Mask value should be either 'mask' or 'incorrect' or 'normal' // , {image_name}")
+            raise ValueError(f"Mask value should be either 'mask' or 'incorrect' or 'normal' // , {self.image_name}")
 
     def get_gender_class(self):
         MALE = 0
@@ -69,7 +69,7 @@ class Data_Labeling():
         elif self.gender.lower() == "female":
             return FEMALE
         else:
-            raise ValueError(f"Gender value should be either 'male' or 'female', {gender}")
+            raise ValueError(f"Gender value should be either 'male' or 'female', {self.gender}")
 
     def get_age_class(self):
         YOUNG = 0
