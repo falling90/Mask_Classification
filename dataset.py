@@ -5,6 +5,8 @@ from PIL import Image
 from albumentations import *
 from albumentations.pytorch import ToTensorV2
 import numpy as np
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 # import random
 # from collections import defaultdict
@@ -99,100 +101,236 @@ class Path_Join_by_Platform():
             result = result.replace("\\", "/")
         return result
 
-class TrainDataset(Dataset):
-    # Mask(3 class) * Gender(2 class) * Age(3 class)
-    num_classes = 3 * 2 * 3
 
-    _file_names = {"incorrect_mask", "mask1", "mask2", "mask3", "mask4", "mask5", "normal"}
+def transforms(train=True, img_size=(512, 384), mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)):
+    """
+    ## transforms
 
-    image_paths = []
-    mask_labels = []
-    gender_labels = []
-    age_labels = []
+            ### input :
 
-    def __init__(self, data_dir, mean=(0.548, 0.504, 0.479), std=(0.237, 0.247, 0.246), val_ratio=0.2):
-        self.data_dir = data_dir
-        self.mean = mean
-        self.std = std
-        self.val_ratio = val_ratio
+                -train :
+                    train flag
 
-        self.transform = None
-        self.scandir_and_labeling()
-        # self.calc_statistics()
+                - img_size :
+                    input W * H
 
-    def scandir_and_labeling(self):
-        pathjoin = Path_Join_by_Platform()
-        each_human_dirs = os.listdir(self.data_dir)
-        for each_human_dir in each_human_dirs:
-            if each_human_dir.startswith("."):  # "." 으로 시작하는 숨김 파일 무시
-                continue
+                 -mean :
+                     R,G,B
+                 -std:
+                     R,G,B
 
-            img_folder = pathjoin.path_join([self.data_dir, each_human_dir])
-            for file_name in os.listdir(img_folder):
-                _file_name, ext = os.path.splitext(file_name)
-                if _file_name not in self._file_names:  # _file_names 변수 내 파일명이 아닌 invalid 파일 무시
-                    continue
+            ### transform
+                - module from albumenattions
 
-                img_path = pathjoin.path_join([self.data_dir, each_human_dir, file_name])
-                id, gender, race, age = each_human_dir.split("_")
 
-                labeling_info = Data_Labeling(_file_name, gender, age)
 
-                mask_label = labeling_info.get_mask_class()
-                gender_label = labeling_info.get_gender_class()
-                age_label = labeling_info.get_age_class()
 
-                self.image_paths.append(img_path)
-                self.mask_labels.append(mask_label)
-                self.gender_labels.append(gender_label)
-                self.age_labels.append(age_label)
+            ### output:
+                -transform : t
 
-    def __len__(self):
-        return len(self.image_paths)
+    -Reference : https://albumentations.ai/docs/api_reference/pytorch/transforms/
+    """
+    if train:
+        transform = A.Compose([
+            A.Resize(img_size[0], img_size[1], p=1.0),
+            A.CenterCrop(224, 224),
+            A.HorizontalFlip(p=0.5),
+            A.Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            ToTensorV2(p=1.0),
+        ], p=1.0)
+    else:
+        transform = A.Compose([
+            A.Resize(img_size[0], img_size[1]),
+            A.CenterCrop(224, 224),
+            A.Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            ToTensorV2(p=1.0),
+        ], p=1.0)
+    return transform
 
-    def get_mask_label(self, index):
-        return self.mask_labels[index]
+class MaskDataset(Dataset):
+    """
+        ## MaskDataset
 
-    def get_gender_label(self, index):
-        return self.gender_labels[index]
+        -subclass from torch.utils.data.Dataset
+        -implement len,getitem
 
-    def get_age_label(self, index):
-        return self.age_labels[index]
+    """
+    def __init__(self, df, index, train=True, img_size = (299, 224)):
+        '''
+            -data :
+                    csv
+            
+           - image_path:
+               image_path from csv
+               
+           -classified labels:
+               labels
 
-    def encode_multi_class(mask_label, gender_label, age_label):
-        return mask_label * 6 + gender_label * 3 + age_label
+            -images_full_path :
+                image_path
 
-    def set_transform(self, transform):
-        self.transform = transform
-
-    def __getitem__(self, index):
-        assert self.transform is not None, "tranform 함수 無. set_transform 사용 必"
-
-        image = np.array(Image.open(self.img_paths[index]))
-        mask_label = self.get_mask_label(index)
-        gender_label = self.get_gender_label(index)
-        age_label = self.get_age_label(index)
-        label = self.encode_multi_class(mask_label, gender_label, age_label)
-
-        image = self.transform(image)
-        return image, label
-
-class TestDataset(Dataset):
-    def __init__(self, img_paths, resize, mean=(0.548, 0.504, 0.479), std=(0.237, 0.247, 0.246)):
-        self.img_paths = img_paths
-        self.transform = None
         
+        '''
+        data = df.iloc[index].reset_index(drop=True)
+        image_path = data['Full Path']
+        
+        self.classified_labels = data['NewClass']
+        self.images_full_path = image_path
+        
+        if train :
+            self.transform = transforms(img_size = img_size,train=True)
+        else :
+            self.transform = transforms(img_size = img_size,train=False)
+        
+    def __len__(self):
+        return self.images_full_path.shape[0]
+    
+    def __getitem__(self,idx):
+        
+        image_path = self.images_full_path[idx]
+        image = Image.open(image_path)
+        y = self.classified_labels[idx]
+        
+        X = self.transform(image=np.array(image))['image']
+        return X,y
+
+class MaskTestDataset(Dataset):
+    """
+        ## MaskTestDataset
+
+        -subclass from torch.utils.data.Dataset
+        -implement len,getitem
+    
+    """
+    def __init__(self, df, img_size = (299, 224)):
+        '''
+            -data , :
+                csv
+                
+           - image_path:
+               image_path from csv
+               
+           -classified labels:
+               labels
+
+            -images_full_path :
+                image_path
+        '''
+        data = df.reset_index(drop=True)
+        image_path = data['Full Path']
+        self.classified_labels = data['NewClass']
+        self.images_full_path = image_path
+        self.transform = transforms(img_size = img_size, train=False)
+
     def set_transform(self, transform):
         self.transform = transform
 
-    def __getitem__(self, index):
-        assert self.transform is not None, "tranform 함수 無. set_transform 사용 必"
-
-        image = np.array(Image.open(self.img_paths[index]))
-
-        if self.transform:
-            image = self.transform(image)
-        return image
-
     def __len__(self):
-        return len(self.img_paths)
+        return self.images_full_path.shape[0]
+    
+    def __getitem__(self,idx):
+        
+        image_path = self.images_full_path[idx]
+        image = Image.open(image_path)
+        y = self.classified_labels[idx]
+        
+        X = self.transform(image=np.array(image))['image']
+        return X, y
+
+# class TrainDataset(Dataset):
+#     # Mask(3 class) * Gender(2 class) * Age(3 class)
+#     num_classes = 3 * 2 * 3
+
+#     _file_names = {"incorrect_mask", "mask1", "mask2", "mask3", "mask4", "mask5", "normal"}
+
+#     image_paths = []
+#     mask_labels = []
+#     gender_labels = []
+#     age_labels = []
+
+#     def __init__(self, data_dir, mean=(0.548, 0.504, 0.479), std=(0.237, 0.247, 0.246), val_ratio=0.2):
+#         self.data_dir = data_dir
+#         self.mean = mean
+#         self.std = std
+#         self.val_ratio = val_ratio
+
+#         self.transform = None
+#         self.scandir_and_labeling()
+#         # self.calc_statistics()
+
+#     def scandir_and_labeling(self):
+#         pathjoin = Path_Join_by_Platform()
+#         each_human_dirs = os.listdir(self.data_dir)
+#         for each_human_dir in each_human_dirs:
+#             if each_human_dir.startswith("."):  # "." 으로 시작하는 숨김 파일 무시
+#                 continue
+
+#             img_folder = pathjoin.path_join([self.data_dir, each_human_dir])
+#             for file_name in os.listdir(img_folder):
+#                 _file_name, ext = os.path.splitext(file_name)
+#                 if _file_name not in self._file_names:  # _file_names 변수 내 파일명이 아닌 invalid 파일 무시
+#                     continue
+
+#                 img_path = pathjoin.path_join([self.data_dir, each_human_dir, file_name])
+#                 id, gender, race, age = each_human_dir.split("_")
+
+#                 labeling_info = Data_Labeling(_file_name, gender, age)
+
+#                 mask_label = labeling_info.get_mask_class()
+#                 gender_label = labeling_info.get_gender_class()
+#                 age_label = labeling_info.get_age_class()
+
+#                 self.image_paths.append(img_path)
+#                 self.mask_labels.append(mask_label)
+#                 self.gender_labels.append(gender_label)
+#                 self.age_labels.append(age_label)
+
+#     def __len__(self):
+#         return len(self.image_paths)
+
+#     def get_mask_label(self, index):
+#         return self.mask_labels[index]
+
+#     def get_gender_label(self, index):
+#         return self.gender_labels[index]
+
+#     def get_age_label(self, index):
+#         return self.age_labels[index]
+
+#     def encode_multi_class(mask_label, gender_label, age_label):
+#         return mask_label * 6 + gender_label * 3 + age_label
+
+#     def set_transform(self, transform):
+#         self.transform = transform
+
+#     def __getitem__(self, index):
+#         assert self.transform is not None, "tranform 함수 無. set_transform 사용 必"
+
+#         image = np.array(Image.open(self.img_paths[index]))
+#         mask_label = self.get_mask_label(index)
+#         gender_label = self.get_gender_label(index)
+#         age_label = self.get_age_label(index)
+#         label = self.encode_multi_class(mask_label, gender_label, age_label)
+
+#         image = self.transform(image)
+#         return image, label
+
+# class TestDataset(Dataset):
+#     def __init__(self, img_paths, resize, mean=(0.548, 0.504, 0.479), std=(0.237, 0.247, 0.246)):
+#         self.img_paths = img_paths
+#         self.transform = None
+        
+#     def set_transform(self, transform):
+#         self.transform = transform
+
+#     def __getitem__(self, index):
+#         assert self.transform is not None, "tranform 함수 無. set_transform 사용 必"
+
+#         image = np.array(Image.open(self.img_paths[index]))
+
+#         if self.transform:
+#             image = self.transform(image)
+#         return image
+
+#     def __len__(self):
+#         return len(self.img_paths)

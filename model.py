@@ -6,29 +6,92 @@ import timm
 
 # custom model
 class Conv3x3BNReLU(nn.Module):
+    '''
+    ## Conv3x3BnRElu
+
+     -subclass from nn.module
+     -implement forward
+     -kernel size 3,3 , bn-relu block
+    '''
     def __init__(self, in_channels, out_channels, stride=1, padding=1):
+        '''
+                    -conv ->conv layer
+                    -bn
+        '''
         super(Conv3x3BNReLU, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=padding)
         self.bn = nn.BatchNorm2d(out_channels)
         
     def forward(self, x):
+        '''
+        #### input : x
+                input from previous layer
+    
+        #### output :
+
+                output wiil be input to next layer
+
+        '''
         x = self.conv(x)
         x = self.bn(x)
-        return F.relu(x)
+        return F.relu(x, inplace=False)
     
 class Conv1x1BNReLU(nn.Module):
+    """
+        ## Conv1x1BNReLU
+
+        -subclass from nn.module
+        -implement forward
+        -kernel size 1,1 ,bn-relu block
+    """
     def __init__(self, in_channels, out_channels):
+        '''
+            -conv -> conv layer
+            -bn -> b atcnh normalization
+        '''
         super(Conv1x1BNReLU, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1)
         self.bn = nn.BatchNorm2d(out_channels)
 
     def forward(self, x):
+        '''
+            
+            ### forward
+
+
+                #### input : x
+                    input from previous layer
+
+                #### output :
+
+                    output wiil be input to next layer
+        '''
         x = self.conv(x)
         x = self.bn(x)
-        return F.relu(x)
+        return F.relu(x, inplace=False)
 
 class MyModel(nn.Module):
+    """
+        ## MyModel
+
+        -subclass from torch.utils.data.Dataset
+        -implement len,getitem
+
+    """
     def __init__(self, num_classes: int = 1000):
+        '''
+            -Conv1_k ,Conv1_k (k is integer)
+                : conv 1*1 bnrelu
+            -Conv k ( k is integer)
+                : conv 3*3 bnrelu
+            - Block k : (k is integer)
+                : conv 1*1 bn-relu , conv 3*3 bn-relu
+             - avg-pool : pooling layer
+
+             -classifier : 
+                 : output layer
+         
+        '''
         super(MyModel, self).__init__()
         
         self.Conv1_1 = Conv3x3BNReLU(in_channels=3, out_channels=32, stride=1, padding=1)
@@ -71,6 +134,21 @@ class MyModel(nn.Module):
         )
 
     def forward(self, x):
+        '''
+        
+        
+        ### forward
+
+
+            #### input : x
+                input image
+
+            #### output :
+
+                output ,  softmax multilabel classification   
+
+        
+        '''
         x = self.Conv1_1(x)
         x = self.Conv1_2(x)
         x_temp = x.clone()
@@ -118,7 +196,6 @@ class MyModel(nn.Module):
             elif isinstance(m,nn.Linear): # lnit dense
                 nn.init.kaiming_normal_(m.weight)
                 nn.init.zeros_(m.bias)
-
 
 def config_model(model_name):
     """
