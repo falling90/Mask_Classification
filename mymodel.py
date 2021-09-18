@@ -78,7 +78,7 @@ class MyModel(nn.Module):
         -implement len,getitem
 
     """
-    def __init__(self, num_classes: int = 1000):
+    def __init__(self, num_classes: int = 18):
         '''
             -Conv1_k ,Conv1_k (k is integer)
                 : conv 1*1 bnrelu
@@ -197,40 +197,35 @@ class MyModel(nn.Module):
                 nn.init.kaiming_normal_(m.weight)
                 nn.init.zeros_(m.bias)
 
-def config_model(model_name):
-    """
-    ## Config Model
+def config_model(model_name, num_classes):
+    model = None
+    available_models = ['vit_base_patch16_224', 'vit_large_patch16_224', 'vgg16', 'vgg19', 'resnet34', 'resnext50', 'resnet152', 'custom_model']
 
-    ###     input : model_name
-    ####       specific model name
-
-    ####     pre_classified_models : model_list
-
-
-
-    ###      output : model 
-    ####            pretrained model from hub
-    
-    """
-    pre_classified_models = ['vit_base_patch16_224','vit_large_patch16_224','vgg16','custom_model']
-    if model_name in pre_classified_models:
+    if model_name in available_models:
         if model_name == 'vit_base_patch16_224':
-            model = timm.create_model('vit_base_patch16_224',pretrained=True,num_classes=18)
+            model = timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=num_classes)
         elif model_name == 'vit_large_patch16_224':
-            model = timm.create_model('vit_large_patch16_224',pretrained=True,num_classes=18)
+            model = timm.create_model('vit_large_patch16_224', pretrained=True, num_classes=num_classes)
         elif model_name == 'vgg16':
-            model = models.vgg16(pretrained=True)
-        elif model_name == 'custom_model':
-            model = MyModel(num_classes=18)
-    else :
-        if model_name == 'resnext50_32x4d':
-            model = models.resnext50_32x4d(pretrained=True)
-        elif model_name == 'resnext101_32x8d':
-            model = models.resnext101_32x8d(pretrained=True)
-        elif model_name == 'resnet152':
-            model = models.resnet152(pretrained=True)
+            model = models.vgg16_bn(pretrained=True)
+        elif model_name == 'vgg19':
+            model = models.vgg19_bn(pretrained=True)
         elif model_name == 'resnet34':
             model = models.resnet34(pretrained=True) 
-        num_features = model.fc.out_features
-        model.fc = nn.Linear(num_features, 18)
+        elif model_name == 'resnext50':
+            model = models.resnet50(pretrained=True)
+        elif model_name == 'resnet152':
+            model = models.resnet152(pretrained=True)
+        elif model_name == 'custom_model':
+            model = MyModel(num_classes=num_classes)
+                
+        try:
+            num_features = model.fc.out_features
+            model.fc = nn.Linear(num_features, num_classes)
+        except Exception:
+            raise ValueError
+    
+    else:
+        raise ValueError(f"The model({model_name}) is not available.\nYou can use only these models({available_models})")
+    
     return model
