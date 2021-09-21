@@ -218,9 +218,9 @@ def config_model(model_name, num_classes):
             model = models.resnet152(pretrained=True)
         elif model_name == 'custom_model':
             model = MyModel(num_classes=num_classes)
-                
+
         try:
-            num_features = model.fc.out_features
+            num_features = model.fc.in_features
             model.fc = nn.Linear(num_features, num_classes)
         except Exception:
             raise ValueError
