@@ -37,9 +37,9 @@ def get_optimizer(model, optimizer_name="Adam", lr=1e-3, momentum=0.9, weight_de
 
 INDEX=[0]
 def train():
-    # print(f" ■ wandb.config\n{wandb.config}\n")
     INDEX[0] += 1
-    run_name = sweep_config['name'] + f"_{INDEX[0]}"
+    # run_name = sweep_config['run_name'] + f"_{INDEX[0]}"
+    run_name = yaml_sweep_config['run_name'] + f"_{INDEX[0]}"
     
     with wandb.init(name=run_name) as run:
         args = wandb.config
@@ -116,11 +116,9 @@ def train():
                     train_acc = matches / args.batch_size / args.log_interval
                     current_lr = args.lr
                     print(
-                        f"Epoch[{epoch}/{args.epochs}]({idx + 1}/{len(train_loader)}) || "
+                        f"Epoch[{epoch+1}/{args.epochs}]({idx + 1}/{len(train_loader)}) || "
                         f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr}"
                     )
-                    # logger.add_scalar("Train/loss", train_loss, epoch * len(train_loader) + idx)
-                    # logger.add_scalar("Train/accuracy", train_acc, epoch * len(train_loader) + idx)
 
                     loss_value = 0
                     matches = 0
@@ -146,13 +144,6 @@ def train():
                     val_loss_items.append(loss_item)
                     val_acc_items.append(acc_item)
 
-                    # if figure is None:
-                    #     inputs_np = torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
-                    #     inputs_np = dataset_module.denormalize_image(inputs_np, dataset.mean, dataset.std)
-                    #     figure = grid_image(
-                    #         inputs_np, labels, preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
-                    #     )
-
                 val_loss = np.sum(val_loss_items) / len(val_loader)
                 val_acc = np.sum(val_acc_items) / len(val_set)
                 best_val_loss = min(best_val_loss, val_loss)
@@ -166,9 +157,6 @@ def train():
                     f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
                     f"best acc : {best_val_acc:4.2%}, best loss: {best_val_loss:4.2}"
                 )
-                # logger.add_scalar("Val/loss", val_loss, epoch)
-                # logger.add_scalar("Val/accuracy", val_acc, epoch)
-                # logger.add_figure("results", figure, epoch)
                 print()
 
             wandb.log({'Train_loss': train_loss, 'Train_Acc': train_acc, 'Eval_loss': val_loss, 'Eval_Acc': val_acc})
@@ -193,7 +181,7 @@ sweep_config = {
     #     "optimizer":
     #         "values": ["adam", "sgd"]
     # }    
-    "name": "Grid_Sweep",
+    "run_name": "Grid_Sweep",
     "parameters":
     {
         "seed":
@@ -219,11 +207,11 @@ sweep_config = {
         "criterion":
             {"value": 'cross_entropy'},
         "epochs":
-            {"value": 10},
+            {"value": 5},
         "log_interval":
             {"value": 20},
         "model_dir":
-            {"value": os.environ.get('SM_MODEL_DIR', './model')},
+            {"value": './model'},
         "name":
             {"value": 'exp'},
     }
@@ -251,19 +239,28 @@ if __name__ == '__main__':
     args = parser.parse_args()
     # args_dict = vars(args)
     
-    # sweep_config = dict()
+    # yaml_sweep_config = dict()
+
+    with open('mysweep.yaml') as f:
+        yaml_sweep_config = yaml.load(f, Loader=yaml.FullLoader)
+        # print(yaml_sweep_config)
+
     # stream = open("mysweep.yaml", 'r')
     # yaml_data = yaml.load_all(stream)
-    
+    # # print(f"yaml_data = {yaml_data}\n\n")
     # for data in yaml_data:
     #     for key, value in data.items():
-    #         sweep_config[key] = value
+    #         # print(key, value)
+    #         yaml_sweep_config[key] = value
+    
+    # print(sweep_config)
+    # print("\n\n")
+    # print(yaml_sweep_config)
 
     # print(sweep_config)
+    # print(yaml_sweep_config)
     
-    
-    # wandb.config = sweep_config
-    sweep_id = wandb.sweep(sweep_config, entity="falling90", project="Test-Project")
+    sweep_id = wandb.sweep(yaml_sweep_config, entity="falling90", project="Test-Project")
     wandb.agent(sweep_id, function=train, count=24)
 
     # train(args)
